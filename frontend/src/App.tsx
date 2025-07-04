@@ -1,3 +1,13 @@
+// Agentic AI Platform – Main React App
+// Provides chat UI, MCP tools sidebar, health checks, and conversation history
+// Inspired by Claude Desktop UI
+//
+// Key features:
+// - Chat with Gemini LLM
+// - MCP tools sidebar (Claude-style)
+// - Model selection, error handling, health checks
+// - Markdown rendering for AI responses
+
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import CloseIcon from '@mui/icons-material/Close';
@@ -18,41 +28,70 @@ import ReactMarkdown from 'react-markdown';
 import { GEMINI_LLM_ENDPOINT, LLM_MODELS, MCP_HEALTH_ENDPOINT, MCP_TOOLS_ENDPOINT } from './config';
 
 interface Message {
-  role: 'user' | 'ai';
-  text: string;
-  timestamp: number;
+  role: 'user' | 'ai'; // Message sender
+  text: string;        // Message content
+  timestamp: number;   // Unix timestamp
 }
 
+/**
+ * Format a timestamp as a human-readable time string.
+ */
 function formatTime(ts: number) {
   const d = new Date(ts);
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
+/**
+ * Main App component for Agentic AI frontend.
+ * Handles chat, MCP tools sidebar, health checks, and conversation history.
+ */
 function App() {
+  // Prompt input state
   const [prompt, setPrompt] = useState('');
+  // Last LLM response
   const [response, setResponse] = useState('');
+  // Loading state for LLM call
   const [loading, setLoading] = useState(false);
+  // Error message state
   const [error, setError] = useState('');
-  const [history, setHistory] = useState<Message[]>([]);
-  const [mcpHealth, setMcpHealth] = useState<string>('');
-  const [mcpLoading, setMcpLoading] = useState(false);
-  const [mcpError, setMcpError] = useState('');
-  const [selectedModel, setSelectedModel] = useState<string>(LLM_MODELS[0].value);
+  // Show error banner
   const [showError, setShowError] = useState(false);
+  // Conversation history (user/AI messages)
+  const [history, setHistory] = useState<Message[]>([]);
+  // MCP health status
+  const [mcpHealth, setMcpHealth] = useState<string>('');
+  // MCP health loading state
+  const [mcpLoading, setMcpLoading] = useState(false);
+  // MCP health error state
+  const [mcpError, setMcpError] = useState('');
+  // Selected LLM model
+  const [selectedModel, setSelectedModel] = useState<string>(LLM_MODELS[0].value);
+  // MCP tools list
   const [tools, setTools] = useState<{ name: string; description: string }[]>([]);
+  // MCP tool dialog state
   const [toolDialogOpen, setToolDialogOpen] = useState(false);
+  // Currently active tool in dialog
   const [activeTool, setActiveTool] = useState<{ name: string; description: string } | null>(null);
+  // Sidebar anchor for popover
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  // Enabled tools (by name)
   const [enabledTools, setEnabledTools] = useState<{ [name: string]: boolean }>({});
+  // Tool order (pre/post)
   const [toolOrder, setToolOrder] = useState<'pre' | 'post'>('pre');
+  // Pipeline info for current process
   const [processInfo, setProcessInfo] = useState<{pre?: any, post?: any} | null>(null);
+  // Sidebar open/close state
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Toggle sidebar open/close
   const toggleSidebar = () => setSidebarOpen((open) => !open);
   const theme = useTheme();
 
   // Sidebar width for layout adjustment
   const SIDEBAR_WIDTH = 340;
 
+  /**
+   * Fetch MCP server health status from backend.
+   */
   const fetchMcpHealth = async () => {
     setMcpLoading(true);
     setMcpError('');
@@ -69,6 +108,7 @@ function App() {
     }
   };
 
+  // On mount: fetch MCP health and tools
   useEffect(() => {
     fetchMcpHealth();
     // Fetch MCP tools
@@ -78,16 +118,22 @@ function App() {
       .catch(() => setTools([]));
   }, []);
 
+  /**
+   * Get MCP health status icon, color, and label for UI.
+   */
   const getMcpStatus = () => {
-    if (mcpLoading) return { icon: '⏳', color: '#888', label: 'Checking...' };
-    if (mcpError) return { icon: '❌', color: '#b91c1c', label: 'Error: ' + mcpError };
-    if (mcpHealth && mcpHealth.toLowerCase().includes('healthy')) return { icon: '✅', color: '#15803d', label: mcpHealth };
-    if (mcpHealth) return { icon: '⚠️', color: '#eab308', label: mcpHealth };
-    return { icon: '❓', color: '#888', label: 'Unknown' };
+    if (mcpLoading) return { icon: '\u23f3', color: '#888', label: 'Checking...' };
+    if (mcpError) return { icon: '\u274c', color: '#b91c1c', label: 'Error: ' + mcpError };
+    if (mcpHealth && mcpHealth.toLowerCase().includes('healthy')) return { icon: '\u2705', color: '#15803d', label: mcpHealth };
+    if (mcpHealth) return { icon: '\u26a0\ufe0f', color: '#eab308', label: mcpHealth };
+    return { icon: '\u2753', color: '#888', label: 'Unknown' };
   };
 
   const mcpStatus = getMcpStatus();
 
+  /**
+   * Handle prompt submission: send to backend, update history, handle errors.
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -96,7 +142,7 @@ function App() {
     setResponse('');
     setProcessInfo(null);
     try {
-      // Use /process endpoint
+      // Use /process endpoint for full pipeline
       const res = await fetch(`${GEMINI_LLM_ENDPOINT.replace('/llm/gemini', '/process')}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -124,17 +170,21 @@ function App() {
     }
   };
 
+  // Dismiss error banner
   const dismissError = () => setShowError(false);
 
+  // Open MCP tool dialog
   const openToolDialog = (tool: { name: string; description: string }) => {
     setActiveTool(tool);
     setToolDialogOpen(true);
   };
+  // Close MCP tool dialog
   const closeToolDialog = () => {
     setToolDialogOpen(false);
     setActiveTool(null);
   };
 
+  // Open/close popover for tool options
   const openPopover = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
@@ -143,9 +193,11 @@ function App() {
   };
   const popoverOpen = Boolean(anchorEl);
 
+  // Toggle tool enabled/disabled
   const handleToolToggle = (toolName: string) => {
     setEnabledTools(prev => ({ ...prev, [toolName]: !prev[toolName] }));
   };
+  // Change tool order (pre/post)
   const handleOrderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setToolOrder(e.target.value as 'pre' | 'post');
   };
@@ -194,6 +246,7 @@ function App() {
             <RefreshIcon fontSize="small" />
           </IconButton>
         </Box>
+        {/* List of available MCP tools */}
         <List>
           {tools.length === 0 ? (
             <ListItem>
@@ -211,6 +264,7 @@ function App() {
           )}
         </List>
         <Divider sx={{ my: 2 }} />
+        {/* Active pipeline info (pre/post-processing) */}
         <Typography fontWeight={600} fontSize={15} color="primary" mb={1}>Active Pipeline</Typography>
         {processInfo && (
           <Box>
@@ -237,6 +291,7 @@ function App() {
       <Box sx={{ ml: sidebarOpen ? `${SIDEBAR_WIDTH + 32}px` : 0, transition: 'margin-left 0.3s' }}>
         <Container maxWidth="sm" sx={{ py: 4 }}>
           <Typography variant="h4" fontWeight={700} align="center" gutterBottom>Agentic AI (Gemini LLM)</Typography>
+          {/* Error banner for failed requests */}
           {showError && error && (
             <Alert severity="error" sx={{ mb: 2 }} action={
               <IconButton color="inherit" size="small" onClick={dismissError}>
@@ -244,6 +299,7 @@ function App() {
               </IconButton>
             }>Error: {error}</Alert>
           )}
+          {/* Loading overlay when waiting for LLM response */}
           {loading && (
             <Box position="fixed" top={0} left={0} width="100vw" height={"100vh"} zIndex={1000} display="flex" alignItems="center" justifyContent="center" sx={{ background: 'rgba(255,255,255,0.5)' }}>
               <Paper elevation={3} sx={{ p: 4, borderRadius: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -252,11 +308,10 @@ function App() {
               </Paper>
             </Box>
           )}
-          {/* Prompt templates */}
-          {/* Removed: No prompt templates shown */}
-          {/* Chat history */}
+          {/* Chat history with avatars and markdown rendering */}
           <Paper sx={{ mb: 3, p: 2, borderRadius: 2, background: '#f7f7fa', border: '1px solid #eee', maxHeight: 350, overflowY: 'auto' }}>
             <Stack spacing={2}>
+              {/* Show pipeline steps if present */}
               {processInfo && (
                 <Box mb={2}>
                   {processInfo.pre?.enabled && processInfo.pre?.pipeline?.length > 0 && (
@@ -277,14 +332,15 @@ function App() {
                   )}
                 </Box>
               )}
+              {/* Show conversation history */}
               {history.length === 0 && <Typography color="text.secondary">No conversation yet.</Typography>}
               {history.map((msg, idx) => (
                 <Box key={idx} display="flex" alignItems="flex-start" gap={2}>
                   <Box>
                     {msg.role === 'user' ? (
-                      <span style={{ fontSize: 24, background: '#e0e7ff', borderRadius: '50%', padding: '2px 8px' }}>🧑</span>
+                      <span style={{ fontSize: 24, background: '#e0e7ff', borderRadius: '50%', padding: '2px 8px' }}> 9d1</span>
                     ) : (
-                      <span style={{ fontSize: 24, background: '#ffe0e0', borderRadius: '50%', padding: '2px 8px' }}>🤖</span>
+                      <span style={{ fontSize: 24, background: '#ffe0e0', borderRadius: '50%', padding: '2px 8px' }}> 916</span>
                     )}
                   </Box>
                   <Box flex={1}>
@@ -299,6 +355,7 @@ function App() {
               ))}
             </Stack>
           </Paper>
+          {/* Prompt input form */}
           <Box component="form" onSubmit={handleSubmit}>
             <TextField
               label="Enter your prompt..."
@@ -316,7 +373,7 @@ function App() {
           </Box>
         </Container>
       </Box>
-      {/* Tool Dialog */}
+      {/* Tool Dialog for MCP tool details (future extensibility) */}
       <Dialog open={toolDialogOpen} onClose={closeToolDialog} fullWidth maxWidth="sm">
         <DialogTitle>{activeTool ? activeTool.name : ''}</DialogTitle>
         <DialogContent>

@@ -1,3 +1,10 @@
+"""
+Agentic AI FastAPI backend
+
+- Provides endpoints for Gemini LLM, MCP tools, and configurable pipeline
+- Handles session-based PII masking/restoration
+- Loads config from environment and mcp_config.json
+"""
 import json
 import os
 import re
@@ -39,10 +46,12 @@ class LLMRequest(BaseModel):
 
 @app.get("/")
 def read_root():
+    """Root health check endpoint."""
     return {"message": "Agentic AI FastAPI backend is running."}
 
 @app.post("/llm/gemini")
 def call_gemini_llm(request: LLMRequest):
+    """Call Gemini LLM with a prompt and return the response."""
     if not GEMINI_API_URL:
         raise HTTPException(status_code=500, detail="Gemini API URL not configured.")
     payload = {
@@ -55,6 +64,7 @@ def call_gemini_llm(request: LLMRequest):
     return {"response": data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")}
 
 def gemini_llm_call(prompt: str) -> str:
+    """Helper function to call Gemini LLM and return the response text."""
     if not GEMINI_API_URL:
         return "[LLM not configured]"
     payload = {
@@ -82,6 +92,10 @@ import uuid
 
 
 def sanitize_input(text: str, session_id: str = None) -> str:
+    """
+    Mask PII in the input text and store mapping for the session.
+    Supported PII: SSN, email, phone, name, address, credit card (last 4 digits only).
+    """
     if not session_id:
         session_id = str(uuid.uuid4())
     if session_id not in PII_MAPPINGS:
@@ -103,6 +117,9 @@ def sanitize_input(text: str, session_id: str = None) -> str:
     return text
 
 def restore_pii(text: str, session_id: str = None) -> str:
+    """
+    Restore masked PII in the text using the session mapping.
+    """
     if not session_id or session_id not in PII_MAPPINGS:
         return text
     mapping = PII_MAPPINGS[session_id]
@@ -113,10 +130,12 @@ def restore_pii(text: str, session_id: str = None) -> str:
 # MCP server scaffolding
 @app.get("/mcp/health")
 def mcp_health():
+    """Health check for MCP server."""
     return {"status": "MCP server is healthy"}
 
 @app.get("/mcp/tools")
 def list_mcp_tools() -> List[Dict[str, str]]:
+    """List available MCP tools and their descriptions."""
     return [
         {"name": "text-analysis", "description": "Analyze text for sentiment, keywords, and more."},
         {"name": "file-upload", "description": "Upload a file for processing."},
@@ -128,32 +147,32 @@ def list_mcp_tools() -> List[Dict[str, str]]:
 
 @app.post("/mcp/text-analysis")
 def mcp_text_analysis(text: str):
-    # Stub: implement text analysis logic
+    """Stub endpoint for text analysis tool."""
     return {"sentiment": "neutral", "keywords": ["example", "keywords"]}
 
 @app.post("/mcp/file-upload")
 def mcp_file_upload(file: UploadFile = File(...)):
-    # Stub: implement file processing logic
+    """Stub endpoint for file upload tool."""
     return {"filename": file.filename, "status": "received"}
 
 @app.post("/mcp/image-analysis")
 def mcp_image_analysis(file: UploadFile = File(...)):
-    # Stub: implement image analysis logic
+    """Stub endpoint for image analysis tool."""
     return {"filename": file.filename, "analysis": "not implemented"}
 
 @app.post("/mcp/web-search")
 def mcp_web_search(query: str):
-    # Stub: implement web search logic
+    """Stub endpoint for web search tool."""
     return {"query": query, "results": ["result 1", "result 2"]}
 
 @app.post("/mcp/code-exec")
 def mcp_code_exec(code: str):
-    # Stub: implement code execution logic
+    """Stub endpoint for code execution tool."""
     return {"output": "code execution not implemented"}
 
 @app.post("/mcp/external-api")
 def mcp_external_api(api: str, params: dict):
-    # Stub: implement external API integration
+    """Stub endpoint for external API integration tool."""
     return {"api": api, "params": params, "result": "not implemented"}
 
 class ProcessRequest(BaseModel):
@@ -161,6 +180,10 @@ class ProcessRequest(BaseModel):
 
 @app.post("/process")
 def process_request(req: ProcessRequest):
+    """
+    Run the configured MCP pipeline (preprocessing, LLM, postprocessing) on the prompt.
+    Handles session-based PII masking/restoration and tool orchestration.
+    """
     # Load MCP config
     config_path = Path(__file__).parent / "mcp_config.json"
     with open(config_path, "r") as f:
@@ -170,6 +193,10 @@ def process_request(req: ProcessRequest):
     session_id = str(uuid.uuid4())
 
     def run_pipeline(pipeline, text, stage, session_id):
+        """
+        Run a pipeline of tools (pre or post processing) on the text.
+        Handles PII tools and stubs for other tools.
+        """
         for step in pipeline:
             server = step.get("server")
             tool = step.get("tool")
