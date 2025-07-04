@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Environment variables
+.env
+.env.*
+
+# VSCode
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Lock and package files
+*.lock
+pip-wheel-metadata/
+
+# SQLite and other DBs
+*.db
+*.sqlite3
+
+# Test and coverage
+.coverage
+htmlcov/
+.tox/
+.pytest_cache/
+
+# Logs
+*.log
+
+# Misc
+migrations/ 
